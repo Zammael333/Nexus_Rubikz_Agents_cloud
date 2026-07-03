@@ -1,0 +1,138 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexus-rubykz-kernel
+  labels:
+    app: nexus-rubykz
+    component: kernel
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: nexus-rubykz
+      component: kernel
+  template:
+    metadata:
+      labels:
+        app: nexus-rubykz
+        component: kernel
+      annotations:
+        sidecar.opentelemetry.io/inject: "true"
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+    spec:
+      serviceAccountName: nexus-rubykz-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kernel
+          image: us-east1-docker.pkg.dev/${PROJECT_ID}/nexus-rubykz/nexus-rubykz-kernel:__IMAGE_TAG__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 9464
+              name: otel-grpc
+          envFrom:
+            - configMapRef:
+                name: nexus-rubykz-config
+            - secretRef:
+                name: nexus-rubykz-secrets
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: GCP_PROJECT_ID
+              valueFrom:
+                configMapRef:
+                  name: nexus-rubykz-config
+                  key: GCP_PROJECT_ID
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://localhost:4318"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: otel-grpc
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: otel-grpc
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 2
+          startupProbe:
+            httpGet:
+              path: /startupz
+              port: otel-grpc
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            failureThreshold: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nexus-rubykz-kernel-svc
+  labels:
+    app: nexus-rubykz
+    component: kernel
+spec:
+  type: ClusterIP
+  selector:
+    app: nexus-rubykz
+    component: kernel
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+    - name: otel-grpc
+      port: 9464
+      targetPort: 9464
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nexus-rubykz-kernel-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nexus-rubykz-kernel
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: nexus-rubykz-kernel-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: nexus-rubykz
+      component: kernel

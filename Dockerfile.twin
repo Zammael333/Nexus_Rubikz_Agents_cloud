@@ -1,0 +1,22 @@
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS builder
+WORKDIR /app
+COPY pyproject.toml uv.lock* ./
+RUN uv sync --frozen --no-dev --no-group eval --no-group lint
+COPY . .
+RUN uv build --wheel
+
+FROM python:3.11-slim-bookworm AS runtime
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/.venv .venv/
+COPY --from=builder /app/dist/ /tmp/dist/
+RUN .venv/bin/pip install /tmp/dist/*.whl && rm -rf /tmp/dist
+COPY .env.production .env.production
+RUN useradd -m -u 1002 nexustwin && chown -R nexustwin:nexustwin /app
+USER nexustwin
+ENV PATH="/app/.venv/bin:$PATH" \
+    APP_ENV=production
+EXPOSE 8001
+CMD ["uvicorn", "app.twin.main_twin:app", "--host", "0.0.0.0", "--port", "8001"]

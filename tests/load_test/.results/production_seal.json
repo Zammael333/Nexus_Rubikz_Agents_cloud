@@ -1,0 +1,82 @@
+{
+  "timestamp": "2026-07-02T05:47:52.729662Z",
+  "checks": [
+    {
+      "name": "ruff lint",
+      "passed": true,
+      "duration_s": 1.06
+    },
+    {
+      "name": "codespell",
+      "passed": true,
+      "duration_s": 2.0
+    },
+    {
+      "name": "unit tests",
+      "passed": true,
+      "duration_s": 43.8
+    },
+    {
+      "name": "integration tests",
+      "passed": true,
+      "duration_s": 0.0
+    },
+    {
+      "name": "pre-commit config",
+      "passed": true,
+      "duration_s": 0.0
+    },
+    {
+      "name": "CI workflow",
+      "passed": true,
+      "duration_s": 0.0
+    },
+    {
+      "name": "Security workflow",
+      "passed": true,
+      "duration_s": 0.0
+    },
+    {
+      "name": ".env.dev",
+      "passed": true,
+      "duration_s": 0.0
+    },
+    {
+      "name": ".env.staging",
+      "passed": true,
+      "duration_s": 0.0
+    },
+    {
+      "name": ".env.production",
+      "passed": true,
+      "duration_s": 0.0
+    },
+    {
+      "name": "stress test script",
+      "passed": true,
+      "duration_s": 0.0
+    },
+    {
+      "name": "SLO verification script",
+      "passed": true,
+      "duration_s": 0.0
+    },
+    {
+      "name": "fire drill script",
+      "passed": true,
+      "duration_s": 0.0
+    },
+    {
+      "name": "post-mortem script",
+      "passed": true,
+      "duration_s": 0.0
+    },
+    {
+      "name": "frontend lint",
+      "passed": true,
+      "duration_s": 24.46
+    }
+  ],
+  "all_passed": true,
+  "version": ""
+}

@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexus Rubykz — SRE Command Console</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #050505;
+  --surface: #121212;
+  --surface-alt: #1a1a1a;
+  --border: #262626;
+  --text: #d4d4d4;
+  --muted: #6b6b6b;
+  --scarlet: #dc2626;
+  --scarlet-bright: #ef4444;
+  --green-dim: #22a855;
+  --amber: #d97706;
+  --orange: #ea580c;
+  --blue: #3b82f6;
+  --cyan: #06b6d4;
+  --accent: var(--scarlet);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+  font-size: 11px;
+  padding: 16px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.header h1 {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.header .subtitle {
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+.pulse-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.pulse-dot.green { background: var(--green-dim); box-shadow: 0 0 8px var(--green-dim); }
+.pulse-dot.amber { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+.pulse-dot.orange { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
+.pulse-dot.red { background: var(--scarlet); box-shadow: 0 0 8px var(--scarlet); }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.freeze-banner {
+  display: none;
+  background: linear-gradient(90deg, #1a0505, #2a0808);
+  border: 1px solid var(--scarlet);
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  color: var(--scarlet-bright);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10px;
+}
+.freeze-banner.visible { display: flex; }
+.freeze-banner .countdown { margin-left: auto; font-size: 9px; color: var(--muted); font-weight: 400; text-transform: none; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 14px;
+}
+.card h3 {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  margin-bottom: 8px;
+  font-weight: 400;
+}
+.card.border-fail { border-color: var(--scarlet); }
+.kpi {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.kpi-value {
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.kpi-label {
+  font-size: 8px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 4px;
+}
+.kpi-sub {
+  font-size: 9px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.graph-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
+  overflow: hidden;
+  position: relative;
+}
+.graph-container canvas {
+  display: block;
+  width: 100%;
+}
+.graph-legend {
+  display: flex;
+  gap: 14px;
+  padding: 6px 14px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+  font-size: 8px;
+}
+.graph-legend span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+}
+.graph-legend .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.graph-legend .dot.frozen { background: var(--scarlet); }
+.graph-legend .dot.active { background: var(--green-dim); }
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+
+.table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.table-wrap h3 {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 400;
+}
+.table-scroll { overflow-x: auto; max-height: 220px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-weight: 400;
+}
+td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.status-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.status-badge.healthy { background: rgba(34,168,85,0.12); color: var(--green-dim); }
+.status-badge.warning { background: rgba(217,119,6,0.12); color: var(--amber); }
+.status-badge.frozen,
+.status-badge.failed,
+.status-badge.quarantined { background: rgba(220,38,38,0.12); color: var(--scarlet-bright); }
+.status-badge.active { background: rgba(34,168,85,0.12); color: var(--green-dim); }
+.status-badge.degraded { background: rgba(234,88,12,0.12); color: var(--orange); }
+.status-badge.recovering { background: rgba(217,119,6,0.12); color: var(--amber); }
+.status-badge.compliant { background: rgba(34,168,85,0.12); color: var(--green-dim); }
+.status-badge.breach { background: rgba(220,38,38,0.12); color: var(--scarlet-bright); }
+.status-badge.stable { background: rgba(34,168,85,0.12); color: var(--green-dim); }
+.status-badge.oscillating { background: rgba(217,119,6,0.12); color: var(--amber); }
+.status-badge.convergent { background: rgba(6,182,212,0.12); color: var(--cyan); }
+.status-badge.divergent { background: rgba(220,38,38,0.12); color: var(--scarlet-bright); }
+
+.refresh-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
+  font-size: 9px;
+}
+.refresh-bar .spinner {
+  width: 10px; height: 10px;
+  border: 2px solid var(--border);
+  border-top-color: var(--green-dim);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  flex-shrink: 0;
+}
+.refresh-bar .spinner.idle { animation: none; border-color: var(--muted); }
+.refresh-bar .spinner.red { border-top-color: var(--scarlet); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.console-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.console-panel h3 {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.console-panel h3 .sim-badge {
+  font-size: 7px;
+  background: rgba(220,38,38,0.15);
+  color: var(--scarlet-bright);
+  padding: 1px 6px;
+  letter-spacing: 0.08em;
+}
+.console-panel h3 .live-badge {
+  font-size: 7px;
+  background: rgba(34,168,85,0.12);
+  color: var(--green-dim);
+  padding: 1px 6px;
+  letter-spacing: 0.08em;
+}
+.console-output {
+  font-family: ui-monospace, SFMono-Regular, 'Courier New', monospace;
+  font-size: 9px;
+  line-height: 1.6;
+  padding: 8px 14px;
+  max-height: 180px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.console-output .trace-gray { color: var(--muted); }
+.console-output .trace-red { color: var(--scarlet-bright); }
+.console-output .trace-green { color: var(--green-dim); }
+.console-output .trace-amber { color: var(--amber); }
+.console-output .trace-cyan { color: var(--cyan); }
+
+.chart-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 0;
+  overflow: hidden;
+}
+.chart-box h3 {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 400;
+}
+.chart-box canvas {
+  display: block;
+  width: 100%;
+  height: 140px;
+}
+
+.gauge-container {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0;
+}
+.gauge-svg { width: 120px; height: 72px; }
+.gauge-value {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin-top: -8px;
+}
+.gauge-label {
+  font-size: 8px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+@media (max-width: 768px) {
+  .two-col, .three-col { grid-template-columns: 1fr; }
+  .grid { grid-template-columns: 1fr 1fr; }
+  body { padding: 10px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span id="headerPulse" class="pulse-dot green"></span>
+  <div>
+    <h1>Nexus Rubykz — SRE Console</h1>
+    <div class="subtitle">Digital Twin · Budget Watchdog · Phoenix Resilience · SLO 99.9973%</div>
+  </div>
+  <div class="subtitle" style="margin-left:auto" id="lastUpdate">—</div>
+</div>
+
+<div id="freezeBanner" class="freeze-banner">
+  <span>&#x26A0;</span>
+  <span>Budget Watchdog — System Frozen</span>
+  <span class="countdown">Error budget exhausted. Deploy freeze enforced.</span>
+</div>
+
+<div class="grid" id="kpiGrid">
+  <div class="card kpi"><div class="kpi-value" id="kpiSlo">—</div><div class="kpi-label">SLO Current</div><div class="kpi-sub" id="kpiSloTrend"></div></div>
+  <div class="card kpi"><div class="kpi-value" id="kpiBudget">—</div><div class="kpi-label">Budget Consumed</div><div class="kpi-sub" id="kpiBudgetDetail"></div></div>
+  <div class="card kpi"><div class="kpi-value" id="kpiFailures">—</div><div class="kpi-label">Failures / Window</div><div class="kpi-sub" id="kpiFailuresRate"></div></div>
+  <div class="card kpi"><div class="kpi-value" id="kpiPulse">—</div><div class="kpi-label">System Pulse</div><div class="kpi-sub" id="kpiStability"></div></div>
+</div>
+
+<div class="graph-container" style="margin-bottom:10px">
+  <canvas id="dagCanvas"></canvas>
+  <div class="graph-legend">
+    <span><span class="dot" style="background:var(--green-dim)"></span> Hub</span>
+    <span><span class="dot" style="background:var(--amber)"></span> Worker</span>
+    <span><span class="dot" style="background:var(--orange)"></span> Monitor</span>
+    <span><span class="dot" style="background:var(--muted)"></span> Scanner</span>
+    <span><span class="dot" style="background:var(--blue)"></span> Validator</span>
+    <span><span class="dot" style="background:var(--cyan)"></span> Telemetry</span>
+    <span style="margin-left:auto"><span class="dot active"></span> active <span class="dot frozen"></span> frozen</span>
+  </div>
+</div>
+
+<div class="three-col">
+  <div class="card kpi" style="padding:0">
+    <h3 style="padding:10px 14px;border-bottom:1px solid var(--border);margin-bottom:0">SLO Gauge</h3>
+    <div class="gauge-container">
+      <svg class="gauge-svg" viewBox="0 0 120 72" id="sloGaugeSvg">
+        <path d="M10 62 A50 50 0 0 1 110 62" fill="none" stroke="#262626" stroke-width="6" stroke-linecap="round"/>
+        <path id="sloGaugeArc" d="M10 62 A50 50 0 0 1 110 62" fill="none" stroke="#22a855" stroke-width="6" stroke-linecap="round" stroke-dasharray="0 314"/>
+        <text id="sloGaugeText" x="60" y="38" text-anchor="middle" fill="#d4d4d4" font-family="monospace" font-size="11" font-weight="700">—</text>
+        <text x="60" y="52" text-anchor="middle" fill="#6b6b6b" font-family="monospace" font-size="6">SLO</text>
+      </svg>
+      <div class="gauge-value" id="sloGaugePercent" style="color:var(--green-dim)">—</div>
+      <div class="gauge-label">Real-time Availability</div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Stability Tensor</h3>
+    <div style="display:flex;flex-direction:column;gap:6px;padding:4px 0">
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Classification</span><span id="stabClass" class="status-badge stable">STABLE</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Trend Slope</span><span id="stabSlope" style="color:var(--green-dim)">0.0000</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Pulse Rank</span><span id="stabRank" style="color:var(--green-dim)">0.00</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Transitions</span><span id="stabTrans">0</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Samples</span><span id="stabSamples" style="color:var(--muted)">0</span></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Edge Glow</h3>
+    <div style="display:flex;flex-direction:column;gap:6px;padding:4px 0">
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Pulse</span><span id="glowPulse" class="status-badge healthy">GREEN</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Real SLO</span><span id="glowRealSlo" style="color:var(--green-dim)">—</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Synth Score</span><span id="glowSynth" style="color:var(--green-dim)">—</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Decay</span><span id="glowDecay" style="color:var(--muted)">—</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="chart-box">
+    <h3>Fidelity — Trust Trends</h3>
+    <canvas id="fidelityChart"></canvas>
+  </div>
+  <div class="table-wrap">
+    <h3>SAT Shield — Discrepancy Log</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Time</th><th>DA</th><th>Platform</th><th>Ledger</th><th>Status</th></tr></thead>
+        <tbody id="satTable"><tr><td colspan="5" style="color:var(--muted);text-align:center">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="table-wrap">
+    <h3>Digital Twin — Snapshot</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Worker</th><th>Status</th><th>Trust</th><th>Drift</th><th>SPIFFE</th></tr></thead>
+        <tbody id="twinTable"><tr><td colspan="5" style="color:var(--muted);text-align:center">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <h3>Phoenix — Worker Health</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Worker</th><th>Status</th><th>Failures</th><th>Recoveries</th><th>Heartbeat</th></tr></thead>
+        <tbody id="phoenixTable"><tr><td colspan="5" style="color:var(--muted);text-align:center">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="refresh-bar">
+  <div class="spinner" id="spinner"></div>
+  <span id="refreshStatus">Auto-refresh every 5s</span>
+  <span id="modeBadge" style="margin-left:auto;font-size:8px;color:var(--muted)">LIVE</span>
+  <span style="margin-left:12px;color:var(--muted);font-size:9px" id="errorCount">ERR 0</span>
+</div>
+
+<div class="console-panel">
+  <h3>
+    <span>System Trace</span>
+    <span id="consoleModeBadge" class="live-badge">LIVE</span>
+    <span style="margin-left:auto;color:var(--muted);font-weight:400;font-size:7px" id="traceCount">0 events</span>
+  </h3>
+  <div class="console-output" id="consoleOutput"></div>
+</div>
+
+<script>
+const API = {
+  slo: "/api/v1/twin/slo-metrics",
+  budget: "/api/twin/budget-status",
+  sat: "/api/v1/twin/sat-discrepancy",
+  phoenix: "/api/v1/twin/phoenix-reports",
+  glow: "/api/v1/twin/edge-glow",
+  dag: "/api/v1/twin/dag-graph",
+  snapshot: "/api/v1/twin/snapshot",
+  fidelity: "/api/v1/twin/fidelity",
+  stability: "/api/v1/twin/stability-tensor",
+};
+
+let graphData = null, simActive = false, traceCount = 0, errorCount = 0;
+let dagCanvas = document.getElementById("dagCanvas"), dagCtx = dagCanvas.getContext("2d");
+let fidelityChart = null, fidelityTimestamps = [], fidelityDatasets = {};
+
+function resizeDag() {
+  const rect = dagCanvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.min(Math.max(rect.width - 0, 400), 1400);
+  dagCanvas.width = w * dpr;
+  dagCanvas.height = 300 * dpr;
+  dagCanvas.style.width = w + "px";
+  dagCanvas.style.height = "300px";
+  dagCtx.scale(dpr, dpr);
+}
+
+function trace(line, cls) {
+  const el = document.getElementById("consoleOutput");
+  const span = document.createElement("span");
+  span.className = cls || "trace-gray";
+  span.textContent = line + "\n";
+  el.appendChild(span);
+  el.scrollTop = el.scrollHeight;
+  traceCount++;
+  document.getElementById("traceCount").textContent = traceCount + " events";
+  if (el.children.length > 200) el.removeChild(el.firstChild);
+}
+
+function updateLastUpdate() {
+  document.getElementById("lastUpdate").textContent = new Date().toISOString().replace("T", " ").slice(0, 19);
+}
+
+function setPulse(pulse) {
+  document.getElementById("headerPulse").className = "pulse-dot " + (pulse || "green");
+}
+
+function setFreeze(frozen) {
+  document.getElementById("freezeBanner").classList.toggle("visible", !!frozen);
+}
+
+function setMode(live) {
+  simActive = !live;
+  const modeEl = document.getElementById("modeBadge");
+  const consoleBadge = document.getElementById("consoleModeBadge");
+  if (live) {
+    modeEl.textContent = "LIVE";
+    modeEl.style.color = "var(--green-dim)";
+    consoleBadge.className = "live-badge";
+    consoleBadge.textContent = "LIVE";
+  } else {
+    modeEl.textContent = "SIMULATED";
+    modeEl.style.color = "var(--scarlet-bright)";
+    consoleBadge.className = "sim-badge";
+    consoleBadge.textContent = "SIM";
+  }
+}
+
+function kpiColor(val, type) {
+  if (type === "slo") return val >= 99.997 ? "var(--green-dim)" : val >= 99.99 ? "var(--amber)" : val >= 99.97 ? "var(--orange)" : "var(--scarlet)";
+  if (type === "budget") return val < 50 ? "var(--green-dim)" : val < 80 ? "var(--amber)" : "var(--scarlet)";
+  if (type === "failures") return val <= 1 ? "var(--green-dim)" : val < 10 ? "var(--amber)" : "var(--scarlet)";
+  return "var(--text)";
+}
+
+function updateSloGauge(pct, color) {
+  const arc = document.getElementById("sloGaugeArc");
+  const text = document.getElementById("sloGaugeText");
+  const pctEl = document.getElementById("sloGaugePercent");
+  const normalized = Math.max(0, Math.min(100, pct));
+  const circumference = 314;
+  const offset = circumference - (normalized / 100) * circumference;
+  arc.setAttribute("stroke-dasharray", (circumference - offset) + " " + circumference);
+  arc.setAttribute("stroke", color || "var(--green-dim)");
+  text.textContent = normalized.toFixed(3) + "%";
+  pctEl.textContent = normalized.toFixed(4) + "%";
+  pctEl.style.color = color || "var(--green-dim)";
+}
+
+function renderDAG(data) {
+  graphData = data;
+  if (!data || !data.nodes) return;
+  resizeDag();
+  const dpr = window.devicePixelRatio || 1;
+  const w = dagCanvas.width / dpr;
+  const h = 300;
+  const cx = w / 2, cy = h / 2 - 10;
+  const radius = Math.min(w, h) / 3;
+
+  const nodeMap = {};
+  data.nodes.forEach((n, i) => {
+    const angle = (i / data.nodes.length) * 2 * Math.PI - Math.PI / 2;
+    n.x = cx + radius * Math.cos(angle) + (data._simOffset || 0);
+    n.y = cy + radius * Math.sin(angle);
+    nodeMap[n.id] = n;
+  });
+
+  const nodeColors = { hub: "var(--green-dim)", worker: "var(--amber)", monitor: "var(--orange)", scanner: "var(--muted)", validator: "var(--blue)", isolator: "#d946ef", telemetry: "var(--cyan)", twin: "var(--cyan)", kernel: "var(--green-dim)", watchdog: "var(--scarlet-bright)", phoenix: "var(--amber)" };
+  const frozen = data.metadata && data.metadata.is_frozen;
+
+  dagCtx.clearRect(0, 0, w, h);
+  dagCtx.fillStyle = "#121212";
+  dagCtx.fillRect(0, 0, w, h);
+
+  if (data.edges) data.edges.forEach(e => {
+    const src = nodeMap[e.source], tgt = nodeMap[e.target];
+    if (!src || !tgt) return;
+    dagCtx.beginPath();
+    dagCtx.moveTo(src.x, src.y);
+    dagCtx.lineTo(tgt.x, tgt.y);
+    dagCtx.strokeStyle = frozen || e.status === "frozen" ? "#dc2626" : e.status === "active" ? "#333" : "#222";
+    dagCtx.lineWidth = frozen || e.status === "frozen" ? 2 : 1;
+    dagCtx.globalAlpha = frozen || e.status === "frozen" ? 0.85 : 0.45;
+    dagCtx.stroke();
+    dagCtx.globalAlpha = 1;
+    const mx = (src.x + tgt.x) / 2, my = (src.y + tgt.y) / 2;
+    dagCtx.fillStyle = "#6b6b6b";
+    dagCtx.font = "7px ui-monospace, monospace";
+    dagCtx.textAlign = "center";
+    dagCtx.fillText(e.protocol, mx, my - 6);
+  });
+
+  data.nodes.forEach(n => {
+    const color = nodeColors[n.type] || "#888";
+    dagCtx.beginPath();
+    dagCtx.arc(n.x, n.y, 16, 0, 2 * Math.PI);
+    dagCtx.fillStyle = color + "18";
+    dagCtx.fill();
+    dagCtx.strokeStyle = color;
+    dagCtx.lineWidth = 2;
+    dagCtx.stroke();
+    dagCtx.fillStyle = color;
+    dagCtx.font = "bold 8px ui-monospace, monospace";
+    dagCtx.textAlign = "center";
+    dagCtx.textBaseline = "middle";
+    dagCtx.fillText((n.label || n.id || "?").charAt(0).toUpperCase(), n.x, n.y);
+    dagCtx.fillStyle = "#6b6b6b";
+    dagCtx.font = "6px ui-monospace, monospace";
+    dagCtx.textBaseline = "top";
+    dagCtx.fillText(n.label || n.id, n.x, n.y + 12);
+  });
+
+  if (frozen) {
+    dagCtx.fillStyle = "rgba(220,38,38,0.06)";
+    dagCtx.fillRect(0, 0, w, h);
+    dagCtx.fillStyle = "#dc2626";
+    dagCtx.font = "bold 11px ui-monospace, monospace";
+    dagCtx.textAlign = "center";
+    dagCtx.textBaseline = "bottom";
+    dagCtx.fillText("SYSTEM FROZEN", cx, h - 6);
+  }
+}
+
+function initFidelityChart() {
+  fidelityChart = new Chart(document.getElementById("fidelityChart"), {
+    type: "line",
+    data: {
+      labels: [],
+      datasets: [
+        { label: "kernel", data: [], borderColor: "#22a855", backgroundColor: "transparent", borderWidth: 1.5, pointRadius: 0, tension: 0.3 },
+        { label: "twin", data: [], borderColor: "#06b6d4", backgroundColor: "transparent", borderWidth: 1.5, pointRadius: 0, tension: 0.3 },
+        { label: "watchdog", data: [], borderColor: "#dc2626", backgroundColor: "transparent", borderWidth: 1.5, pointRadius: 0, tension: 0.3 },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 0 },
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: {
+        x: { display: false },
+        y: { min: 0, max: 1, grid: { color: "#1a1a1a", drawTicks: false }, ticks: { color: "#6b6b6b", font: { size: 8, family: "monospace" }, callback: v => v.toFixed(1) } }
+      }
+    }
+  });
+}
+
+function pushFidelity(vals) {
+  if (!fidelityChart) return;
+  const now = new Date().toLocaleTimeString();
+  fidelityChart.data.labels.push(now);
+  ["kernel", "twin", "watchdog"].forEach((k, i) => {
+    fidelityChart.data.datasets[i].data.push(vals[i]);
+  });
+  if (fidelityChart.data.labels.length > 40) {
+    fidelityChart.data.labels.shift();
+    fidelityChart.data.datasets.forEach(d => d.data.shift());
+  }
+  fidelityChart.update("none");
+}
+
+// ---- SIMULATOR ----
+let simClock = 0;
+
+function simDag() {
+  const nodes = [
+    { id: "kernel", label: "Kernel", type: "hub" },
+    { id: "twin", label: "Digital Twin", type: "twin" },
+    { id: "watchdog", label: "Watchdog", type: "watchdog" },
+    { id: "phoenix", label: "Phoenix", type: "phoenix" },
+    { id: "otel", label: "OpenTelemetry", type: "telemetry" },
+    { id: "sat", label: "SAT Shield", type: "validator" },
+  ];
+  const edges = [
+    { source: "kernel", target: "twin", protocol: "sync", status: "active" },
+    { source: "kernel", target: "watchdog", protocol: "internal", status: "active" },
+    { source: "twin", target: "phoenix", protocol: "health", status: "active" },
+    { source: "phoenix", target: "watchdog", protocol: "health", status: "active" },
+    { source: "watchdog", target: "sat", protocol: "verify", status: "active" },
+    { source: "otel", target: "kernel", protocol: "telemetry", status: "active" },
+    { source: "otel", target: "twin", protocol: "telemetry", status: "active" },
+  ];
+  const frozen = simPulse === "red";
+  if (frozen) edges.forEach(e => e.status = "frozen");
+  return { nodes, edges, metadata: { is_frozen: frozen }, _simOffset: Math.sin(simClock * 0.02) * 10 };
+}
+
+let simPulse = "green";
+let simStabilityClass = "stable";
+let simSlo = 99.973;
+let simBudget = 42;
+let simFailures = 3;
+
+function simData() {
+  simClock++;
+
+  const t = simClock * 0.1;
+  simPulse = Math.sin(t) > 0.3 ? "green" : Math.sin(t) > -0.2 ? "amber" : Math.sin(t) > -0.5 ? "orange" : "red";
+  simSlo = 99.973 + Math.sin(t * 0.7) * 0.015 + (Math.random() - 0.5) * 0.004;
+  simBudget = 42 + Math.sin(t * 0.5) * 18 + (Math.random() - 0.5) * 4;
+  simFailures = Math.max(0, Math.round(3 + Math.sin(t * 0.3) * 4 + (Math.random() - 0.5) * 2));
+  const order = ["stable", "oscillating", "stable", "convergent", "stable", "oscillating"];
+  simStabilityClass = order[Math.floor(Math.abs(Math.sin(t * 0.15))) % order.length];
+
+  return {
+    slo: {
+      slo_current: simSlo,
+      slo_target: 99.9973,
+      slo_trend: Math.sin(t * 0.4) * 0.001,
+    },
+    budget: {
+      is_frozen: simPulse === "red",
+      report: {
+        budget_consumed_percent: simBudget,
+        total_failures: simFailures,
+        error_rate_percent: simFailures * 0.1,
+        check_count: 200 + simClock,
+      },
+      warning_threshold: 70,
+      freeze_threshold: 90,
+    },
+    sat: {
+      entries: Array.from({ length: 8 }, (_, i) => ({
+        timestamp: new Date(Date.now() - i * 3000).toISOString(),
+        da: Math.abs(Math.sin(t + i) * 0.008) + (Math.random() * 0.002),
+        platform_val: 100 + Math.sin(t + i) * 5,
+        ledger_val: 100 + Math.sin(t + i * 1.1) * 5,
+        verified: Math.abs(Math.sin(t + i)) > 0.15,
+      })),
+    },
+    phoenix: {
+      total_workers: 4,
+      workers: [
+        { worker_id: "kernel", status: "healthy", consecutive_failures: 0, recovery_count: 5, last_heartbeat: new Date().toISOString() },
+        { worker_id: "twin", status: simPulse === "red" ? "quarantined" : "healthy", consecutive_failures: simPulse === "red" ? 12 : 0, recovery_count: 3, last_heartbeat: new Date().toISOString() },
+        { worker_id: "watchdog", status: simPulse === "orange" ? "degraded" : "healthy", consecutive_failures: simPulse === "orange" ? 4 : 0, recovery_count: 7, last_heartbeat: new Date().toISOString() },
+        { worker_id: "phoenix", status: "healthy", consecutive_failures: 0, recovery_count: 2, last_heartbeat: new Date().toISOString() },
+      ],
+    },
+    glow: {
+      pulse: simPulse,
+      real_slo: simSlo / 100,
+      synth_score: 0.92 + Math.sin(t * 0.6) * 0.05,
+      decay: Math.abs(Math.sin(t * 0.8)) * 0.03,
+    },
+    dag: simDag(),
+    snapshot: {
+      poll_interval: 5.0,
+      running: true,
+      mirror: [
+        { worker_id: "kernel", status: "ok", trust_score: 0.97 + Math.sin(t) * 0.02, state: {}, spiffe_id: "spiffe://nexus/kernel" },
+        { worker_id: "twin", status: "ok", trust_score: 0.95 + Math.sin(t * 0.8) * 0.03, state: {}, spiffe_id: "spiffe://nexus/twin" },
+        { worker_id: "watchdog", status: simPulse === "red" ? "error" : "ok", trust_score: simPulse === "red" ? 0.4 : 0.93 + Math.sin(t * 0.6) * 0.02, state: {}, spiffe_id: "spiffe://nexus/watchdog" },
+      ],
+    },
+    fidelity: {
+      workers: {
+        kernel: Array.from({ length: 20 }, (_, i) => ({ trust: 0.95 + Math.sin((simClock - i) * 0.2) * 0.04, ts: new Date(Date.now() - (19 - i) * 5000).toISOString() })),
+        twin: Array.from({ length: 20 }, (_, i) => ({ trust: 0.93 + Math.sin((simClock - i) * 0.25) * 0.05, ts: new Date(Date.now() - (19 - i) * 5000).toISOString() })),
+        watchdog: Array.from({ length: 20 }, (_, i) => ({ trust: 0.88 + Math.sin((simClock - i) * 0.3) * 0.08, ts: new Date(Date.now() - (19 - i) * 5000).toISOString() })),
+      },
+    },
+    stability: {
+      classification: simStabilityClass,
+      trend_slope: Math.sin(t * 0.4) * 0.02,
+      mean_pulse_rank: simPulse === "green" ? 0.2 : simPulse === "amber" ? 0.8 : simPulse === "orange" ? 1.6 : 2.5,
+      pulse_transitions: Math.round(2 + Math.abs(Math.sin(t * 0.5)) * 5),
+      samples_in_window: 50,
+      std_pulse_rank: 0.3 + Math.abs(Math.sin(t * 0.3)) * 0.4,
+    },
+  };
+}
+
+function renderSimData(data) {
+  setPulse(data.glow.pulse);
+  setFreeze(data.budget.is_frozen);
+
+  const slo = data.slo.slo_current;
+  const sloColor = kpiColor(slo, "slo");
+  document.getElementById("kpiSlo").textContent = slo.toFixed(4) + "%";
+  document.getElementById("kpiSlo").style.color = sloColor;
+  document.getElementById("kpiSloTrend").textContent = "trend: " + (data.slo.slo_trend >= 0 ? "+" : "") + (data.slo.slo_trend * 100).toFixed(4) + "%";
+  updateSloGauge(slo, sloColor);
+
+  const budget = data.budget.report.budget_consumed_percent;
+  document.getElementById("kpiBudget").textContent = budget.toFixed(2) + "%";
+  document.getElementById("kpiBudget").style.color = kpiColor(budget, "budget");
+  document.getElementById("kpiBudgetDetail").textContent = "freeze @ " + data.budget.freeze_threshold + "% · warn @ " + data.budget.warning_threshold + "%";
+
+  const failures = data.budget.report.total_failures;
+  document.getElementById("kpiFailures").textContent = failures;
+  document.getElementById("kpiFailures").style.color = kpiColor(failures, "failures");
+  document.getElementById("kpiFailuresRate").textContent = "err rate: " + data.budget.report.error_rate_percent.toFixed(2) + "%";
+
+  document.getElementById("kpiPulse").textContent = data.glow.pulse.toUpperCase();
+  document.getElementById("kpiPulse").style.color = data.glow.pulse === "green" ? "var(--green-dim)" : data.glow.pulse === "amber" ? "var(--amber)" : data.glow.pulse === "orange" ? "var(--orange)" : "var(--scarlet)";
+  document.getElementById("kpiStability").textContent = "tensor: " + data.stability.classification.toUpperCase();
+
+  renderDAG(data.dag);
+
+  const satBody = document.getElementById("satTable");
+  satBody.innerHTML = data.sat.entries.slice(0, 12).map(e => {
+    const daColor = e.da > 0.005 ? "var(--scarlet-bright)" : "var(--green-dim)";
+    return `<tr>
+      <td style="font-size:8px;color:var(--muted)">${(e.timestamp || "").slice(11, 19)}</td>
+      <td style="color:${daColor};font-weight:600">${e.da.toFixed(5)}</td>
+      <td>${e.platform_val.toFixed(2)}</td>
+      <td>${e.ledger_val.toFixed(2)}</td>
+      <td><span class="status-badge ${e.verified ? "compliant" : "breach"}">${e.verified ? "COMPLIANT" : "BREACH"}</span></td>
+    </tr>`;
+  }).join("");
+
+  const phoenixBody = document.getElementById("phoenixTable");
+  phoenixBody.innerHTML = data.phoenix.workers.map(w => {
+    const statusClass = w.status === "healthy" ? "healthy" : w.status === "degraded" ? "degraded" : w.status === "recovering" ? "recovering" : w.status === "quarantined" ? "frozen" : "warning";
+    return `<tr>
+      <td style="font-weight:600">${w.worker_id}</td>
+      <td><span class="status-badge ${statusClass}">${w.status}</span></td>
+      <td style="${w.consecutive_failures > 0 ? 'color:var(--scarlet-bright)' : ''}">${w.consecutive_failures}</td>
+      <td>${w.recovery_count}</td>
+      <td style="font-size:8px;color:var(--muted)">${(w.last_heartbeat || "").slice(11, 19)}</td>
+    </tr>`;
+  }).join("");
+
+  const twinBody = document.getElementById("twinTable");
+  twinBody.innerHTML = data.snapshot.mirror.map(w => {
+    const trustColor = (w.trust_score || 0) >= 0.9 ? "var(--green-dim)" : (w.trust_score || 0) >= 0.7 ? "var(--amber)" : "var(--scarlet-bright)";
+    const drift = w.trust_score != null ? (1 - w.trust_score).toFixed(4) : "—";
+    return `<tr>
+      <td style="font-weight:600">${w.worker_id}</td>
+      <td><span class="status-badge ${w.status === "ok" ? "healthy" : "frozen"}">${w.status}</span></td>
+      <td style="color:${trustColor}">${w.trust_score != null ? w.trust_score.toFixed(3) : "—"}</td>
+      <td style="color:${parseFloat(drift) > 0.1 ? "var(--scarlet-bright)" : "var(--muted)"}">${drift}</td>
+      <td style="font-size:8px;color:var(--muted)">${(w.spiffe_id || "").split("/").pop()}</td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("stabClass").textContent = data.stability.classification.toUpperCase();
+  document.getElementById("stabClass").className = "status-badge " + (data.stability.classification === "stable" || data.stability.classification === "convergent" ? "stable" : "oscillating");
+  document.getElementById("stabSlope").textContent = data.stability.trend_slope.toFixed(4);
+  document.getElementById("stabSlope").style.color = data.stability.trend_slope < -0.005 ? "var(--green-dim)" : data.stability.trend_slope > 0.005 ? "var(--scarlet-bright)" : "var(--amber)";
+  document.getElementById("stabRank").textContent = data.stability.mean_pulse_rank.toFixed(2);
+  document.getElementById("stabRank").style.color = data.stability.mean_pulse_rank < 0.5 ? "var(--green-dim)" : data.stability.mean_pulse_rank < 1.5 ? "var(--amber)" : "var(--scarlet-bright)";
+  document.getElementById("stabTrans").textContent = data.stability.pulse_transitions;
+  document.getElementById("stabSamples").textContent = data.stability.samples_in_window;
+
+  document.getElementById("glowPulse").textContent = data.glow.pulse.toUpperCase();
+  document.getElementById("glowPulse").className = "status-badge " + (data.glow.pulse === "green" ? "healthy" : data.glow.pulse === "amber" ? "warning" : data.glow.pulse === "orange" ? "degraded" : "frozen");
+  document.getElementById("glowRealSlo").textContent = (data.glow.real_slo * 100).toFixed(4) + "%";
+  document.getElementById("glowRealSlo").style.color = data.glow.real_slo >= 0.9997 ? "var(--green-dim)" : "var(--scarlet-bright)";
+  document.getElementById("glowSynth").textContent = data.glow.synth_score.toFixed(4);
+  document.getElementById("glowSynth").style.color = data.glow.synth_score >= 0.9 ? "var(--green-dim)" : "var(--amber)";
+  document.getElementById("glowDecay").textContent = (data.glow.decay * 100).toFixed(3) + "%";
+  document.getElementById("glowDecay").style.color = data.glow.decay < 0.01 ? "var(--green-dim)" : "var(--scarlet-bright)";
+
+  pushFidelity([0.95 + Math.sin(simClock * 0.2) * 0.04, 0.93 + Math.sin(simClock * 0.25) * 0.05, 0.88 + Math.sin(simClock * 0.3) * 0.08]);
+}
+
+// ---- FETCH ENGINE ----
+async function fetchAll() {
+  const spinner = document.getElementById("spinner");
+  spinner.className = "spinner";
+
+  try {
+    const [sloRes, budgetRes, satRes, phoenixRes, glowRes, dagRes, snapRes, fidRes, stabRes] = await Promise.allSettled([
+      fetch(API.slo).then(r => r.ok ? r.json() : Promise.reject(r.status)),
+      fetch(API.budget).then(r => r.ok ? r.json() : Promise.reject(r.status)),
+      fetch(API.sat).then(r => r.ok ? r.json() : Promise.reject(r.status)),
+      fetch(API.phoenix).then(r => r.ok ? r.json() : Promise.reject(r.status)),
+      fetch(API.glow).then(r => r.ok ? r.json() : Promise.reject(r.status)),
+      fetch(API.dag).then(r => r.ok ? r.json() : Promise.reject(r.status)),
+    ]);
+
+    const allOk = [sloRes, budgetRes, satRes, phoenixRes, glowRes, dagRes].every(r => r.status === "fulfilled");
+
+    if (!allOk) throw new Error("partial backend failure");
+
+    setMode(true);
+
+    const slo = sloRes.value;
+    const budget = budgetRes.value;
+    const sat = satRes.value;
+    const phoenix = phoenixRes.value;
+    const glow = glowRes.value;
+    const dag = dagRes.value;
+
+    const pulse = (glow.pulse || "green").toLowerCase();
+    setPulse(pulse);
+    setFreeze(budget.is_frozen || (dag.metadata && dag.metadata.is_frozen));
+
+    const sloCurrent = slo.slo_current || 99.99;
+    const sloColor = kpiColor(sloCurrent, "slo");
+    document.getElementById("kpiSlo").textContent = sloCurrent.toFixed(4) + "%";
+    document.getElementById("kpiSlo").style.color = sloColor;
+    document.getElementById("kpiSloTrend").textContent = "trend: " + ((slo.slo_trend || 0) * 100).toFixed(4) + "%";
+    updateSloGauge(sloCurrent, sloColor);
+
+    const budgetPct = budget.report ? budget.report.budget_consumed_percent : 0;
+    document.getElementById("kpiBudget").textContent = budgetPct.toFixed(2) + "%";
+    document.getElementById("kpiBudget").style.color = kpiColor(budgetPct, "budget");
+    document.getElementById("kpiBudgetDetail").textContent = "freeze @ " + (budget.freeze_threshold || 90) + "% · warn @ " + (budget.warning_threshold || 70) + "%";
+
+    const fails = budget.report ? budget.report.total_failures : 0;
+    document.getElementById("kpiFailures").textContent = fails;
+    document.getElementById("kpiFailures").style.color = kpiColor(fails, "failures");
+    document.getElementById("kpiFailuresRate").textContent = "err rate: " + (budget.report ? budget.report.error_rate_percent.toFixed(2) : "0.00") + "%";
+
+    document.getElementById("kpiPulse").textContent = pulse.toUpperCase();
+    document.getElementById("kpiPulse").style.color = pulse === "green" ? "var(--green-dim)" : pulse === "yellow" || pulse === "amber" ? "var(--amber)" : pulse === "orange" ? "var(--orange)" : "var(--scarlet)";
+    document.getElementById("kpiStability").textContent = "—";
+
+    renderDAG(dag);
+
+    const satBody = document.getElementById("satTable");
+    if (sat.entries && sat.entries.length > 0) {
+      satBody.innerHTML = sat.entries.slice(-15).reverse().map(e => {
+        const daColor = e.da > 0.005 ? "var(--scarlet-bright)" : "var(--green-dim)";
+        return `<tr>
+          <td style="font-size:8px;color:var(--muted)">${(e.timestamp || "").slice(11, 19)}</td>
+          <td style="color:${daColor};font-weight:600">${e.da.toFixed(5)}</td>
+          <td>${e.platform_val.toFixed(2)}</td>
+          <td>${e.ledger_val.toFixed(2)}</td>
+          <td><span class="status-badge ${e.verified ? "compliant" : "breach"}">${e.verified ? "COMPLIANT" : "BREACH"}</span></td>
+        </tr>`;
+      }).join("");
+    } else {
+      satBody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center">No SAT records</td></tr>';
+    }
+
+    const phoenixBody = document.getElementById("phoenixTable");
+    if (phoenix.workers && phoenix.total_workers > 0) {
+      phoenixBody.innerHTML = Object.values(phoenix.workers).map(w => {
+        const statusClass = w.status === "healthy" ? "healthy" : w.status === "degraded" ? "degraded" : w.status === "recovering" ? "recovering" : w.status === "quarantined" ? "frozen" : "warning";
+        return `<tr>
+          <td style="font-weight:600">${w.worker_id}</td>
+          <td><span class="status-badge ${statusClass}">${w.status}</span></td>
+          <td style="${w.consecutive_failures > 0 ? 'color:var(--scarlet-bright)' : ''}">${w.consecutive_failures}</td>
+          <td>${w.recovery_count}</td>
+          <td style="font-size:8px;color:var(--muted)">${(w.last_heartbeat || "").slice(11, 19)}</td>
+        </tr>`;
+      }).join("");
+    } else {
+      phoenixBody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center">No workers registered</td></tr>';
+    }
+
+    const twinBody = document.getElementById("twinTable");
+    twinBody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center">Waiting for snapshot...</td></tr>';
+
+    document.getElementById("stabClass").textContent = "—";
+    document.getElementById("stabSlope").textContent = "—";
+    document.getElementById("stabRank").textContent = "—";
+    document.getElementById("stabTrans").textContent = "—";
+    document.getElementById("stabSamples").textContent = "—";
+    document.getElementById("glowPulse").textContent = pulse.toUpperCase();
+    document.getElementById("glowPulse").className = "status-badge " + (pulse === "green" ? "healthy" : pulse === "amber" || pulse === "yellow" ? "warning" : pulse === "orange" ? "degraded" : "frozen");
+    document.getElementById("glowRealSlo").textContent = glow.real_slo != null ? (glow.real_slo * 100).toFixed(4) + "%" : "—";
+    document.getElementById("glowRealSlo").style.color = (glow.real_slo || 0) >= 0.9997 ? "var(--green-dim)" : "var(--scarlet-bright)";
+    document.getElementById("glowSynth").textContent = glow.synth_score != null ? glow.synth_score.toFixed(4) : "—";
+    document.getElementById("glowSynth").style.color = (glow.synth_score || 0) >= 0.9 ? "var(--green-dim)" : "var(--amber)";
+    document.getElementById("glowDecay").textContent = "—";
+
+    trace("[OK] Fetch cycle completed", "trace-green");
+    spinner.className = "spinner idle";
+
+  } catch (err) {
+    errorCount++;
+    document.getElementById("errorCount").textContent = "ERR " + errorCount;
+    spinner.className = "spinner red idle";
+
+    if (!simActive) {
+      setMode(false);
+      trace("[SIM] Backend unreachable — activating simulation engine", "trace-red");
+      trace("[SIM] Feeding 8 panels with synthetic oscillating data", "trace-red");
+      trace("[SIM] SLO target: 99.9973% · Tensor: STABLE ↔ OSCILLATING", "trace-red");
+    }
+    const data = simData();
+    renderSimData(data);
+    updateLastUpdate();
+
+    const fields = [
+      ["SLO", data.slo.slo_current.toFixed(4) + "%", "trace-cyan"],
+      ["BUDGET", data.budget.report.budget_consumed_percent.toFixed(1) + "%", "trace-amber"],
+      ["PULSE", data.glow.pulse.toUpperCase(), data.glow.pulse === "green" ? "trace-green" : "trace-red"],
+      ["TENSOR", data.stability.classification.toUpperCase(), data.stability.classification === "stable" ? "trace-green" : "trace-amber"],
+      ["SLO-GAUGE", simSlo.toFixed(4) + "%", "trace-gray"],
+    ];
+    trace("[SIM] " + fields.map(f => f[0] + "=" + f[1]).join(" · "), "trace-red");
+  }
+}
+
+resizeDag();
+initFidelityChart();
+trace("[BOOT] SRE Command Console initializing", "trace-cyan");
+trace("[BOOT] Target: nexus-rubykz · Fetch interval: 5s", "trace-gray");
+trace("[BOOT] Panels: DAG · SLO · Budget · SAT · Phoenix · Twin · Fidelity · Tensor · EdgeGlow", "trace-gray");
+fetchAll();
+setInterval(fetchAll, 5000);
+window.addEventListener("resize", () => { if (graphData) renderDAG(graphData); });
+</script>
+</body>
+</html>

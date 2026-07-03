@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS-RUBYKZ · Runtime Simulator</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #050505; --panel: #121212; --border: #262626;
+    --accent: #ef4444; --accent-dim: #7f1d1d;
+    --text: #e5e5e5; --text-dim: #888; --text-muted: #555;
+    --green: #22c55e; --yellow: #eab308; --red: #ef4444;
+    --cyan: #22d3ee; --purple: #a855f7; --orange: #f97316;
+    --font: 'SF Mono','Fira Code','Cascadia Code',monospace;
+  }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--font); min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 24px 16px; font-size: 13px;
+  }
+  .header {
+    width: 100%; max-width: 1360px;
+    display: flex; justify-content: space-between; align-items: flex-end;
+    padding: 16px 0 24px; border-bottom: 1px solid var(--border); margin-bottom: 28px;
+  }
+  .header h1 {
+    font-size: 22px; font-weight: 700; letter-spacing: -0.5px;
+    background: linear-gradient(135deg, var(--accent) 0%, #fca5a5 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .header .subtitle { font-size: 11px; color: var(--text-dim); margin-top: 4px; letter-spacing: 0.5px; }
+  .header .badge-group { display: flex; gap: 12px; align-items: center; }
+  .header .badge {
+    font-size: 11px; padding: 6px 14px; border-radius: 4px;
+    background: var(--panel); border: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse-dot 2s infinite; }
+  @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
+  .grid {
+    width: 100%; max-width: 1360px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; position: relative;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    cursor: default;
+  }
+  .card:hover {
+    border-color: var(--accent-dim); box-shadow: 0 0 24px rgba(239,68,68,0.08);
+  }
+  .card-title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.8px; color: var(--text-dim); margin-bottom: 10px;
+  }
+  .card-title .icon { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .metric-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .metric-label { color: var(--text-muted); font-size: 11px; }
+  .metric-value { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .metric-value.green { color: var(--green); }
+  .metric-value.yellow { color: var(--yellow); }
+  .metric-value.red { color: var(--red); }
+  .metric-value.accent { color: var(--accent); }
+  .metric-value.cyan { color: var(--cyan); }
+  .metric-value.purple { color: var(--purple); }
+  .metric-value.orange { color: var(--orange); }
+  .metric-value.white { color: var(--text); }
+  .log-box {
+    margin-top: 10px; max-height: 120px; overflow-y: auto;
+    font-size: 10px; line-height: 1.5; color: var(--text-muted);
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  .log-box::-webkit-scrollbar { width: 4px; }
+  .log-box::-webkit-scrollbar-track { background: transparent; }
+  .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .log-entry { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.02); }
+  .log-entry .ts { color: var(--text-muted); }
+  .log-entry .lvl-info { color: var(--green); }
+  .log-entry .lvl-warn { color: var(--yellow); }
+  .log-entry .lvl-err { color: var(--red); }
+  .log-entry .lvl-debug { color: #6366f1; }
+  .tooltip-forensic {
+    display: none;
+    position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+    background: #1a1a1a; border: 1px solid var(--border);
+    border-radius: 6px; padding: 12px 14px; width: 290px;
+    font-size: 11px; line-height: 1.6; color: var(--text);
+    z-index: 100; box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    pointer-events: none;
+  }
+  .tooltip-forensic::after {
+    content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+    border: 6px solid transparent; border-top-color: var(--border);
+  }
+  .card:hover .tooltip-forensic { display: block; }
+  .tooltip-forensic .tt-title {
+    font-size: 11px; font-weight: 700; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px;
+  }
+  .tooltip-forensic .tt-slo {
+    color: var(--green); font-weight: 600; margin-top: 6px;
+  }
+  .tooltip-forensic .tt-detail { color: var(--text-dim); }
+  .log-stream {
+    width: 100%; max-width: 1360px; margin-top: 24px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px;
+  }
+  .log-stream .stream-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
+  }
+  .log-stream .stream-header span {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-dim);
+  }
+  .log-stream .stream-body {
+    height: 140px; overflow-y: auto;
+    font-size: 11px; line-height: 1.6;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  .log-stream .stream-body::-webkit-scrollbar { width: 4px; }
+  .log-stream .stream-body::-webkit-scrollbar-track { background: transparent; }
+  .log-stream .stream-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  @media (max-width: 1024px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>⎔ NEXUS-RUBYKZ</h1>
+    <div class="subtitle">Runtime Simulator · SRE Symbiote Core</div>
+  </div>
+  <div class="badge-group">
+    <div class="badge">
+      <span class="dot"></span>
+      <span>SLO 99.9973% · <span id="uptime-counter">0000</span>s uptime</span>
+    </div>
+    <div class="badge">
+      <span>⎔ Tokens</span>
+      <span id="token-counter" style="font-weight:700;color:var(--accent)">1,000,000</span>
+    </div>
+  </div>
+</div>
+
+<div class="grid" id="dashboard">
+
+  <!-- 1 ─ DAG Graph -->
+  <div class="card">
+    <div class="card-title"><span class="icon" style="background:#a855f7"></span> DAG Graph</div>
+    <div class="tooltip-forensic">
+      <div class="tt-title">Multi-Worker DAG Execution Graph</div>
+      <div>Topological sort over 16 worker nodes with 24 dependency edges. Critical-path analysis via O(V+E) Kahn's algorithm. Parallel fan-out across independent branches. Cycle detection enforced pre-deploy. Execution plan recomputed on topology change.</div>
+      <div class="tt-slo">Critical path ≤ 50ms · SLO 99.9973% · Zero deadlock invariant</div>
+      <div class="tt-detail">Levels: topological · Nodes: 16 · Edges: 24 · Fan-out factor: 3.2</div>
+    </div>
+    <div class="metric-row"><span class="metric-label">Worker Nodes</span><span class="metric-value white" id="dag-nodes">16</span></div>
+    <div class="metric-row"><span class="metric-label">Dependency Edges</span><span class="metric-value white" id="dag-edges">24</span></div>
+    <div class="metric-row"><span class="metric-label">Critical Path</span><span class="metric-value green" id="dag-crit">12.4ms</span></div>
+    <div class="metric-row"><span class="metric-label">Exec Plan</span><span class="metric-value green" id="dag-plan">READY</span></div>
+  </div>
+
+  <!-- 2 ─ Budget Watchdog -->
+  <div class="card">
+    <div class="card-title"><span class="icon" style="background:#ef4444"></span> Budget Watchdog</div>
+    <div class="tooltip-forensic">
+      <div class="tt-title">Error Budget Enforcement · SLO 99.9973%</div>
+      <div>720h sliding-window error budget at 0.0027% max error rate. At 50% consumption, alert threshold fires. At 100%, non-critical workers auto-freeze. Computed as: Budget_remaining = (1 − errors_total / (requests_total × (1 − SLO_target))) × 100.</div>
+      <div class="tt-slo">Target: 99.9973% · Max error: 0.0027% · Window: 720h</div>
+      <div class="tt-detail">Alert at 50% · Freeze at 100% · Auto-thaw on budget recovery</div>
+    </div>
+    <div class="metric-row"><span class="metric-label">Error Budget</span><span class="metric-value green" id="bw-budget">100.00%</span></div>
+    <div class="metric-row"><span class="metric-label">Consumed</span><span class="metric-value green" id="bw-consumed">0.0000%</span></div>
+    <div class="metric-row"><span class="metric-label">Window</span><span class="metric-value white">720h</span></div>
+    <div class="metric-row"><span class="metric-label">State</span><span class="metric-value green" id="bw-state">NOMINAL</span></div>
+  </div>
+
+  <!-- 3 ─ SLO Gauge -->
+  <div class="card">
+    <div class="card-title"><span class="icon" style="background:#22c55e"></span> SLO Gauge</div>
+    <div class="tooltip-forensic">
+      <div class="tt-title">SLO Attainment Gauge</div>
+      <div>Real-time SLO attainment computed as good_requests / total_requests over a 720h rolling window. Granularity: per-minute buckets. At 99.9973%, max allowable errors in 720h = floor(0.000027 × R_total). Burn-rate alerts fire when projected attainment breaches threshold within 6h.</div>
+      <div class="tt-slo">Current: 99.9973% · Burn rate alert: 6h projection</div>
+      <div class="tt-detail">Buckets: 43,200 (per-minute) · Error budget: 0.0027%</div>
+    </div>
+    <div class="metric-row"><span class="metric-label">Attainment</span><span class="metric-value green" id="slo-attain">99.9973%</span></div>
+    <div class="metric-row"><span class="metric-label">Good Requests</span><span class="metric-value white" id="slo-good">847,293</span></div>
+    <div class="metric-row"><span class="metric-label">Total Requests</span><span class="metric-value white" id="slo-total">847,316</span></div>
+    <div class="metric-row"><span class="metric-label">Burn Rate</span><span class="metric-value green" id="slo-burn">0.00x</span></div>
+  </div>
+
+  <!-- 4 ─ Stability Tensor -->
+  <div class="card">
+    <div class="card-title"><span class="icon" style="background:#22d3ee"></span> Stability Tensor</div>
+    <div class="tooltip-forensic">
+      <div class="tt-title">Multi-Dimensional Stability Analysis</div>
+      <div>8-dimensional tensor (latency, throughput, error_rate, memory_util, cpu_load, connection_pool, queue_depth, circuit_state) reduced via PCA to a scalar stability rank [0,1]. Eigen-decomposition identifies dominant instability vectors. Frobenius norm of delta-tensor across 60s window classifies CONVERGENT / STABLE / OSCILLATING / DIVERGENT.</div>
+      <div class="tt-slo">Eigen-stability ≥ 0.97 for CONVERGENT · SLO 99.9973%</div>
+      <div class="tt-detail">Tensor shape: 8×60 · PCA components: 3 · Norm threshold: 0.03</div>
+    </div>
+    <div class="metric-row"><span class="metric-label">Tensor Rank</span><span class="metric-value green" id="ts-rank">0.9734</span></div>
+    <div class="metric-row"><span class="metric-label">Eigen-Stability</span><span class="metric-value green" id="ts-eigen">CONVERGENT</span></div>
+    <div class="metric-row"><span class="metric-label">Frobenius Δ</span><span class="metric-value green" id="ts-delta">0.0071</span></div>
+    <div class="metric-row"><span class="metric-label">Dominant Axis</span><span class="metric-value white" id="ts-axis">latency</span></div>
+  </div>
+
+  <!-- 5 ─ SAT Discrepancy -->
+  <div class="card">
+    <div class="card-title"><span class="icon" style="background:#eab308"></span> SAT Discrepancy</div>
+    <div class="tooltip-forensic">
+      <div class="tt-title">Sistema de Administración Tributaria — Absolute Discrepancy</div>
+      <div>Da = |V_expected − V_actual| / V_expected. Fiscal edge validation in real-time with periodic batch reconciliation against inventory ledger. Threshold Da < 0.01 for CLEAN status. Batch reconciliation every 900s triggers full inventory cross-check. Persistent Da > 0.05 escalates to ALERT with audit trail.</div>
+      <div class="tt-slo">Da target < 0.01 · Reconciliation every 900s · SLO 99.9973%</div>
+      <div class="tt-detail">Batch window: 900s · Escalation threshold: Da > 0.05</div>
+    </div>
+    <div class="metric-row"><span class="metric-label">Da Discrepancy</span><span class="metric-value green" id="st-da">0.0007</span></div>
+    <div class="metric-row"><span class="metric-label">Validations</span><span class="metric-value white" id="st-validations">1,247</span></div>
+    <div class="metric-row"><span class="metric-label">Last Batch</span><span class="metric-value white" id="st-batch">12s ago</span></div>
+    <div class="metric-row"><span class="metric-label">Status</span><span class="metric-value green" id="st-status">CLEAN</span></div>
+  </div>
+
+  <!-- 6 ─ Phoenix Cycle -->
+  <div class="card">
+    <div class="card-title"><span class="icon" style="background:#22c55e"></span> Phoenix Cycle</div>
+    <div class="tooltip-forensic">
+      <div class="tt-title">Auto-Healing Protocol · RTO < 2.5s</div>
+      <div>Health checks every 1s per registered worker. After 3 consecutive failures, worker enters quarantine — isolated from the DAG routing table, recovery epoch UUID generated, and resurrection sequence initiated. Phoenix Cycle tracks: total_recoveries, mean_time_to_recover (MTTR), epoch_count, and current_quarantine_depth. Successful recovery re-registers worker with new epoch.</div>
+      <div class="tt-slo">RTO target: 2.5s · MTTR target < 1.8s</div>
+      <div class="tt-detail">Heartbeat: 1s · Quarantine threshold: 3 fails · Recovery retry: 3 attempts</div>
+    </div>
+    <div class="metric-row"><span class="metric-label">Heartbeat</span><span class="metric-value green" id="ph-heartbeat">OK</span></div>
+    <div class="metric-row"><span class="metric-label">Recoveries</span><span class="metric-value white" id="ph-recoveries">0</span></div>
+    <div class="metric-row"><span class="metric-label">RTO (last)</span><span class="metric-value green" id="ph-rto">0.84s</span></div>
+    <div class="metric-row"><span class="metric-label">Quarantined</span><span class="metric-value green" id="ph-quarantine">0</span></div>
+  </div>
+
+  <!-- 7 ─ SPIFFE Identity -->
+  <div class="card">
+    <div class="card-title"><span class="icon" style="background:#a855f7"></span> SPIFFE Identity</div>
+    <div class="tooltip-forensic">
+      <div class="tt-title">SPIFFE/SPIRE mTLS Identity Layer</div>
+      <div>Every worker node holds a SPIFFE Verifiable Identity Document (SVID) bound to its trust domain. mTLS handshake requires valid SVID presentation before any A2A gRPC call. SPIRE agent manages rotation: SVIDs expire every 24h, automatic re-enrollment via CSR to SPIRE server. Trust bundle distributed at node bootstrap.</div>
+      <div class="tt-slo">SVID rotation: 24h · Handshake: < 50ms · Zero unsigned frames</div>
+      <div class="tt-detail">Trust domain: your-trust-domain.example · Socket: /run/spire/agent/api.sock</div>
+    </div>
+    <div class="metric-row"><span class="metric-label">SVIDs Issued</span><span class="metric-value white" id="sp-svids">16</span></div>
+    <div class="metric-row"><span class="metric-label">Trust Domain</span><span class="metric-value white" id="sp-domain">active</span></div>
+    <div class="metric-row"><span class="metric-label">mTLS Handshake</span><span class="metric-value green" id="sp-handshake">0.47ms</span></div>
+    <div class="metric-row"><span class="metric-label">Expiry</span><span class="metric-value green" id="sp-expiry">23:47h</span></div>
+  </div>
+
+  <!-- 8 ─ OpenTelemetry Stream -->
+  <div class="card">
+    <div class="card-title"><span class="icon" style="background:#6366f1"></span> OpenTelemetry Stream</div>
+    <div class="tooltip-forensic">
+      <div class="tt-title">OTLP Trace / Log / Metric Exporter</div>
+      <div>Every event bus message, Phoenix recovery, and DAG execution step emits an OpenTelemetry span with trace_id, parent_span_id, and duration_ms. Logs at DEBUG level carry structured attributes (worker_id, event_type, da_value). Metrics are counter-based (nexus_requests_total, nexus_errors_total) with Prometheus exposition format. Exporter batch interval: 2s to otel-collector:4318.</div>
+      <div class="tt-slo">Span export < 100ms · Zero dropped spans at nominal load</div>
+      <div class="tt-detail">Endpoint: localhost:4318 · Batch: 2s · Sampling: 100%</div>
+    </div>
+    <div class="metric-row"><span class="metric-label">Spans Exported</span><span class="metric-value white" id="otel-spans">12,483</span></div>
+    <div class="metric-row"><span class="metric-label">Dropped</span><span class="metric-value green" id="otel-dropped">0</span></div>
+    <div class="metric-row"><span class="metric-label">Batch Queue</span><span class="metric-value green" id="otel-queue">0</span></div>
+    <div class="metric-row"><span class="metric-label">Exporter</span><span class="metric-value green" id="otel-status">ACTIVE</span></div>
+  </div>
+
+</div>
+
+<div class="log-stream">
+  <div class="stream-header">
+    <span>⎔ Structured Log Stream · Token Drain Active</span>
+    <span style="color:var(--text-muted);font-size:10px" id="log-count">0 entries</span>
+  </div>
+  <div class="stream-body" id="log-body">
+    <div class="log-entry"><span class="ts">[--:--:--]</span> <span class="lvl-info">INFO</span> nexus.kernel — System initialized. 16 workers registered.</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const R = () => Math.random();
+  const N = (mean, std) => mean + (R() + R() + R() - 1.5) * std;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const pick = (a) => a[Math.floor(R() * a.length)];
+
+  const $ = id => document.getElementById(id);
+
+  const startTs = Date.now();
+  setInterval(() => {
+    const s = Math.floor((Date.now() - startTs) / 1000);
+    $('uptime-counter').textContent = String(s).padStart(4, '0');
+  }, 1000);
+
+  let tick = 0;
+  let tokenBalance = 1000000;
+  const TOKEN_DECAY = 17;
+  const logs = [];
+  const MAX_LOGS = 60;
+
+  function pushLog(level, source, msg) {
+    const ts = new Date().toISOString().slice(11, 19);
+    const cls = level === 'INFO' ? 'lvl-info' : level === 'WARN' ? 'lvl-warn' : level === 'ERROR' ? 'lvl-err' : 'lvl-debug';
+    logs.push({ ts, level, cls, source, msg });
+    if (logs.length > MAX_LOGS) logs.shift();
+  }
+
+  const SEED_SOURCES = ['nexus.kernel','phoenix.cycle','sat.da','watchdog.budget','slo.gauge','stability.tensor','spiffe.svid','otel.exporter'];
+  for (let i = 0; i < 8; i++) {
+    pushLog('INFO', SEED_SOURCES[i % SEED_SOURCES.length], 'Nominal operation — SLO 99.9973%');
+  }
+
+  function renderLogs() {
+    const el = document.getElementById('log-body');
+    el.innerHTML = logs.map(l =>
+      `<div class="log-entry"><span class="ts">[${l.ts}]</span> <span class="${l.cls}">${l.level}</span> ${l.source} — ${l.msg}</div>`
+    ).join('');
+    document.getElementById('log-count').textContent = `${logs.length} entries`;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  const PULSES = ['GREEN','GREEN','GREEN','GREEN','YELLOW'];
+  const STAB_EIGEN = ['CONVERGENT','STABLE','STABLE','STABLE','OSCILLATING'];
+  const STATES = ['NOMINAL','NOMINAL','NOMINAL','NOMINAL','NOMINAL','NOMINAL','NOMINAL','NOMINAL','NOMINAL','WATCH'];
+  const AXES = ['latency','throughput','error_rate','cpu_load','memory_util'];
+
+  const metrics = {
+    dag: { nodes: 16, edges: 24, crit: 12.4, plan: 0 },
+    bw: { budget: 100, consumed: 0, state: 0 },
+    slo: { attain: 99.9973, good: 847293, total: 847316, burn: 0.00 },
+    ts: { rank: 0.9734, eigen: 0, delta: 0.0071, axis: 0 },
+    st: { da: 0.0007, validations: 1247, batch: 12, status: 0 },
+    ph: { heartbeat: 0, recoveries: 0, rto: 0.84, quarantine: 0 },
+    sp: { svids: 16, domain: 0, handshake: 0.47, expiry: 23.78 },
+    otel: { spans: 12483, dropped: 0, queue: 0, status: 0 },
+  };
+
+  function oscillate() {
+    tick++;
+
+    // DAG Graph
+    metrics.dag.crit = clamp(N(12.4, 3), 5, 30);
+    metrics.dag.plan = R() < 0.02 ? 1 : 0;
+    $('dag-crit').textContent = metrics.dag.crit.toFixed(1) + 'ms';
+    $('dag-crit').className = 'metric-value ' + (metrics.dag.crit < 20 ? 'green' : 'yellow');
+    $('dag-plan').textContent = metrics.dag.plan === 0 ? 'READY' : 'EXECUTING';
+    $('dag-plan').className = 'metric-value ' + (metrics.dag.plan === 0 ? 'green' : 'yellow');
+
+    // Budget Watchdog
+    metrics.bw.consumed = clamp(N(0.0000, 0.0005), 0, 0.0027);
+    metrics.bw.budget = 100 - (metrics.bw.consumed / 0.0027) * 100;
+    metrics.bw.state = metrics.bw.consumed < 0.001 ? 0 : metrics.bw.consumed < 0.002 ? 1 : metrics.bw.consumed < 0.0025 ? 2 : 3;
+    $('bw-budget').textContent = clamp(metrics.bw.budget, 0, 100).toFixed(2) + '%';
+    $('bw-budget').className = 'metric-value ' + (metrics.bw.budget > 80 ? 'green' : metrics.bw.budget > 50 ? 'yellow' : 'red');
+    $('bw-consumed').textContent = metrics.bw.consumed.toFixed(4) + '%';
+    $('bw-consumed').className = 'metric-value ' + (metrics.bw.consumed < 0.001 ? 'green' : metrics.bw.consumed < 0.002 ? 'yellow' : 'red');
+    const bwst = metrics.bw.state;
+    $('bw-state').textContent = bwst === 0 ? 'NOMINAL' : bwst === 1 ? 'WATCH' : bwst === 2 ? 'ALERT' : 'FROZEN';
+    $('bw-state').className = 'metric-value ' + (bwst === 0 ? 'green' : bwst === 1 ? 'yellow' : 'red');
+
+    // SLO Gauge
+    const newTotal = Math.floor(N(0, 2) + (tick % 5 === 0 ? 1 : 0));
+    const newGood = newTotal - (R() < 0.000027 ? 1 : 0);
+    metrics.slo.total += newTotal;
+    metrics.slo.good += newGood;
+    metrics.slo.attain = (metrics.slo.good / metrics.slo.total) * 100;
+    metrics.slo.burn = clamp(N(0, 0.5), 0, 3);
+    $('slo-attain').textContent = metrics.slo.attain.toFixed(4) + '%';
+    $('slo-attain').className = 'metric-value ' + (metrics.slo.attain >= 99.997 ? 'green' : metrics.slo.attain >= 99.99 ? 'yellow' : 'red');
+    $('slo-good').textContent = metrics.slo.good.toLocaleString();
+    $('slo-total').textContent = metrics.slo.total.toLocaleString();
+    $('slo-burn').textContent = metrics.slo.burn.toFixed(2) + 'x';
+    $('slo-burn').className = 'metric-value ' + (metrics.slo.burn < 1 ? 'green' : metrics.slo.burn < 2 ? 'yellow' : 'red');
+
+    // Stability Tensor
+    metrics.ts.rank = clamp(N(0.9734, 0.02), 0.85, 1.00);
+    metrics.ts.eigen = metrics.ts.rank > 0.97 ? 0 : metrics.ts.rank > 0.92 ? 1 : metrics.ts.rank > 0.85 ? 2 : 3;
+    metrics.ts.delta = clamp(N(0.0071, 0.005), 0.001, 0.05);
+    metrics.ts.axis = R() < 0.2 ? Math.floor(R() * 5) : metrics.ts.axis;
+    $('ts-rank').textContent = metrics.ts.rank.toFixed(4);
+    $('ts-rank').className = 'metric-value ' + (metrics.ts.rank > 0.97 ? 'green' : metrics.ts.rank > 0.92 ? 'yellow' : 'red');
+    $('ts-eigen').textContent = STAB_EIGEN[metrics.ts.eigen];
+    $('ts-eigen').className = 'metric-value ' + (metrics.ts.eigen < 2 ? 'green' : metrics.ts.eigen === 2 ? 'yellow' : 'red');
+    $('ts-delta').textContent = metrics.ts.delta.toFixed(4);
+    $('ts-delta').className = 'metric-value ' + (metrics.ts.delta < 0.03 ? 'green' : 'yellow');
+    $('ts-axis').textContent = AXES[metrics.ts.axis];
+
+    // SAT Discrepancy
+    metrics.st.da = clamp(N(0.0007, 0.0004), 0.0001, 0.01);
+    metrics.st.validations += Math.floor(R() * 5) + 1;
+    metrics.st.batch = R() < 0.1 ? 0 : metrics.st.batch + 1;
+    metrics.st.status = metrics.st.da < 0.005 ? 0 : 1;
+    $('st-da').textContent = metrics.st.da.toFixed(4);
+    $('st-da').className = 'metric-value ' + (metrics.st.da < 0.005 ? 'green' : metrics.st.da < 0.01 ? 'yellow' : 'red');
+    $('st-validations').textContent = metrics.st.validations.toLocaleString();
+    $('st-batch').textContent = metrics.st.batch + 's ago';
+    $('st-status').textContent = metrics.st.status === 0 ? 'CLEAN' : 'ALERT';
+    $('st-status').className = 'metric-value ' + (metrics.st.status === 0 ? 'green' : 'red');
+    if (metrics.st.da > 0.005) {
+      pushLog('WARN', 'sat.da', `Da discrepancy ${metrics.st.da.toFixed(4)} — threshold approaching`);
+    }
+
+    // Phoenix Cycle
+    metrics.ph.rto = clamp(N(0.84, 0.3), 0.3, 2.5);
+    metrics.ph.quarantine = R() < 0.01 ? 1 : 0;
+    $('ph-rto').textContent = metrics.ph.rto.toFixed(2) + 's';
+    $('ph-rto').className = 'metric-value ' + (metrics.ph.rto < 2.0 ? 'green' : 'yellow');
+    $('ph-quarantine').textContent = String(metrics.ph.quarantine);
+    $('ph-quarantine').className = 'metric-value ' + (metrics.ph.quarantine === 0 ? 'green' : 'red');
+    if (metrics.ph.quarantine > 0) {
+      pushLog('WARN', 'phoenix.cycle', `Worker quarantined — initiating recovery sequence`);
+    }
+
+    // SPIFFE Identity
+    metrics.sp.handshake = clamp(N(0.47, 0.15), 0.1, 2.0);
+    metrics.sp.expiry = clamp(metrics.sp.expiry - 0.02, 0, 24);
+    if (metrics.sp.expiry < 0.5) { metrics.sp.expiry = 24; metrics.sp.svids++; pushLog('INFO','spiffe.svid','SVID batch rotation complete'); }
+    $('sp-handshake').textContent = metrics.sp.handshake.toFixed(2) + 'ms';
+    $('sp-handshake').className = 'metric-value ' + (metrics.sp.handshake < 1.0 ? 'green' : 'yellow');
+    const exH = Math.floor(metrics.sp.expiry);
+    const exM = Math.floor((metrics.sp.expiry - exH) * 60);
+    $('sp-expiry').textContent = String(exH).padStart(2,'0') + ':' + String(exM).padStart(2,'0') + 'h';
+
+    // OpenTelemetry Stream
+    metrics.otel.spans += Math.floor(N(5, 3));
+    metrics.otel.dropped = tick % 100 === 0 ? 0 : metrics.otel.dropped;
+    if (R() < 0.003) { metrics.otel.dropped++; pushLog('ERROR','otel.exporter','Span dropped — batch queue full'); }
+    metrics.otel.queue = Math.floor(clamp(N(0, 2), 0, 20));
+    $('otel-spans').textContent = metrics.otel.spans.toLocaleString();
+    $('otel-dropped').textContent = String(metrics.otel.dropped);
+    $('otel-dropped').className = 'metric-value ' + (metrics.otel.dropped === 0 ? 'green' : 'red');
+    $('otel-queue').textContent = String(metrics.otel.queue);
+    $('otel-queue').className = 'metric-value ' + (metrics.otel.queue < 5 ? 'green' : metrics.otel.queue < 15 ? 'yellow' : 'red');
+
+    // Structured logs
+    if (tick % 3 === 0) {
+      const src = pick(SEED_SOURCES);
+      const msgs = {
+        'nexus.kernel': ['Workers heartbeat OK', 'Circuit breaker CLOSED', 'DAG plan READY'],
+        'phoenix.cycle': ['Health check PASS', 'RTO nominal', 'All workers responsive'],
+        'sat.da': [`Da = ${metrics.st.da.toFixed(4)} — within bounds`, 'Reconciliation batch complete'],
+        'watchdog.budget': [`Error budget ${metrics.bw.budget.toFixed(2)}% remaining`, 'SLO target 99.9973%'],
+        'slo.gauge': [`Attainment ${metrics.slo.attain.toFixed(4)}%`, 'Burn rate nominal'],
+        'stability.tensor': [`Tensor rank ${metrics.ts.rank.toFixed(4)} — CONVERGENT`],
+        'spiffe.svid': ['SVID valid — mTLS handshake nominal', 'Trust bundle OK'],
+        'otel.exporter': [`Spans: ${metrics.otel.spans.toLocaleString()}, dropped: ${metrics.otel.dropped}`],
+      };
+      pushLog('INFO', src, pick(msgs[src]));
+    }
+
+    renderLogs();
+  }
+
+  function drainToken() {
+    tokenBalance = Math.max(0, tokenBalance - TOKEN_DECAY);
+    $('token-counter').textContent = tokenBalance.toLocaleString();
+    if (tokenBalance <= 0) {
+      pushLog('WARN', 'nexus.kernel', 'Token pool depleted — budget exhaustion simulation');
+    }
+    if (tick % 100 === 0 && tokenBalance > 0) {
+      pushLog('INFO', 'nexus.kernel', `Token balance: ${tokenBalance.toLocaleString()} — ${((tokenBalance / 1000000) * 100).toFixed(1)}% remaining`);
+    }
+  }
+
+  setInterval(oscillate, 1200);
+  setInterval(drainToken, 1500);
+  oscillate();
+  drainToken();
+  renderLogs();
+
+})();
+</script>
+</body>
+</html>

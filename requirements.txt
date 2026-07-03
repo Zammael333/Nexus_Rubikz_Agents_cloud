@@ -1,0 +1,12 @@
+# Pinned production dependencies — generated from pyproject.toml
+# Use `uv pip compile pyproject.toml -o requirements.txt` to update
+google-adk[gcp]>=2.0.0,<3.0.0
+opentelemetry-instrumentation-google-genai>=0.1.0,<1.0.0
+gcsfs>=2024.11.0
+google-cloud-logging>=3.12.0,<4.0.0
+google-cloud-aiplatform[evaluation,agent-engines]>=1.156.0
+protobuf>=6.31.1,<7.0.0
+opentelemetry-sdk>=1.20.0
+opentelemetry-api>=1.20.0
+google-cloud-secret-manager>=2.16.0
+aiosqlite>=0.19.0

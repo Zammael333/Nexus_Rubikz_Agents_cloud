@@ -1,0 +1,23 @@
+{
+  "test": "fire_drill",
+  "rto_target_s": 2.5,
+  "phases": {
+    "normal": {
+      "ok": 50,
+      "fail": 0,
+      "elapsed_s": 0.02
+    },
+    "degraded": {
+      "ok": 50,
+      "fail": 0,
+      "elapsed_s": 0.03
+    },
+    "recovered": {
+      "ok": 50,
+      "fail": 0,
+      "elapsed_s": 0.02
+    }
+  },
+  "total_dlq": 0,
+  "passed": true
+}

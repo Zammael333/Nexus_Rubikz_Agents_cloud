@@ -1,0 +1,12 @@
+{
+  "test": "slo_verify",
+  "target": 99.9973,
+  "total_attempted": 100000,
+  "total_tracked": 100000,
+  "emit_failures": 0,
+  "dlq_failures": 0,
+  "total_failures": 0,
+  "elapsed_s": 42.55,
+  "success_rate": 100.0,
+  "met": true
+}

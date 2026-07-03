@@ -1,0 +1,11 @@
+{
+  "test": "stress_test",
+  "event_rate": 500,
+  "duration_s": 10,
+  "sent": 4000,
+  "elapsed_s": 10.06,
+  "throughput_ev_s": 397,
+  "final_queue_size": 0,
+  "dlq_size": 0,
+  "passed": true
+}

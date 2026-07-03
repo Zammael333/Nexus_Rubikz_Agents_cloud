@@ -1,0 +1,67 @@
+steps:
+  - id: lint
+    name: ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        uv sync --frozen --group lint --group dev
+        uv run ruff check app/ tests/ scripts/
+        uv run ty check app/ tests/ --exclude .venv
+
+  - id: test
+    name: ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        uv sync --frozen --group dev
+        uv run python -m pytest tests/unit/ -v --tb=short
+        uv run python -m pytest tests/integration/ -v --tb=short
+
+  - id: docker-build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - $_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME:$SHORT_SHA
+      - -t
+      - $_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME:latest
+      - --cache-from
+      - $_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME:latest
+      - .
+    waitFor:
+      - lint
+      - test
+
+  - id: docker-push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - $_ARTIFACT_REGISTRY_REPO/$_SERVICE_NAME:$SHORT_SHA
+    waitFor:
+      - docker-build
+
+  - id: deploy-gke
+    name: gcr.io/google.com/cloudsdktool/google-cloud-cli
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        gcloud container clusters get-credentials $_GKE_CLUSTER --region $_GKE_REGION
+        sed -i "s|__IMAGE_TAG__|$SHORT_SHA|g" deployment.yaml
+        kubectl apply -f deployment.yaml
+    waitFor:
+      - docker-push
+
+substitutions:
+  _ARTIFACT_REGISTRY_REPO: us-east1-docker.pkg.dev/${PROJECT_ID}/nexus-rubykz
+  _SERVICE_NAME: nexus-rubykz-kernel
+  _GKE_CLUSTER: nexus-rubykz
+  _GKE_REGION: us-east1
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1800s

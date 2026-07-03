@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nexus-rubykz-config
+  labels:
+    app: nexus-rubykz
+data:
+  APP_ENV: "production"
+  GCP_PROJECT_ID: "__PROJECT_ID__"
+  GCP_REGION: "us-east1"
+  SLO_WINDOW_HOURS: "720"
+  ERROR_BUDGET_MAX_PERCENT: "0.027"
+  WATCHDOG_ALERT_THRESHOLD: "0.5"
+  WATCHDOG_FREEZE_THRESHOLD: "1.0"
+  A2A_TTL_SECONDS: "30"
+  A2A_TRUST_THRESHOLD: "0.0"
+  DAG_GLOBAL_TIMEOUT: "60"
+  SPIFFE_TRUST_DOMAIN: "nexus-rubykz.internal"
+  SPIRE_BIND_ADDRESS: "0.0.0.0"
+  SPIRE_BIND_PORT: "8081"
+  SPIRE_SERVER_PORT: "8081"
+  VAULT_DB_PATH: "/data/nexus_vault.db"
+  BRIDGE_LOG_FILE: "/data/nexus_bridge.log"
+  NOTIFICATION_LOG_FILE: "/data/nexus_notifications.log"
+  CONTAINER_ROLE: "kernel"
+  LOGS_BUCKET_NAME: "nexus-rubykz-logs"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318"
+  SRE_KERNEL_PULSE_INTERVAL: "60"
