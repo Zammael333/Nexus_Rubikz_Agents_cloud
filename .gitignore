@@ -106,6 +106,10 @@ celerybeat.pid
 
 # Environments
 .env
+.env.dev
+.env.staging
+.env.production
+.env.local
 .venv
 .venv*
 env/
@@ -170,6 +174,12 @@ yarn-error.log
 !.vscode/launch.json
 !.vscode/extensions.json
 .history/*
+
+# Build artifacts
+.next/
+frontend/.next/
+playwright-report/
+test-results/
 
 # Miscellaneous
 **/.angular/*
