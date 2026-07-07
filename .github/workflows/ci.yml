@@ -79,13 +79,15 @@ jobs:
       - name: Build
         run: npm run build
 
-  sbom:
-    name: SBOM
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Generate Python SBOM
-        run: uv export --format requirements-txt --no-hashes > requirements.txt && uv run cyclonedx-py requirements.txt --output-format json
+sbom:
+  name: SBOM
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: astral-sh/setup-uv@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    - name: Install cyclonedx-py
+      run: uv pip install cyclonedx-py
+    - name: Generate Python SBOM
+      run: uv export --format requirements-txt --no-hashes > requirements.txt && uv run cyclonedx-py requirements.txt --output-format json
