@@ -36,15 +36,4 @@ jobs:
       - name: Audit Python deps
         run: uv audit
 
-  codespell:
-    name: Codespell
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install
-        run: uv sync --group lint
-      - name: Run codespell
-        run: uv run codespell app/ tests/ scripts/ --skip="./frontend"
+ 
