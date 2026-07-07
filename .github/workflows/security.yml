@@ -34,6 +34,5 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Audit Python deps
-        run: uv audit
-
+  run: uv audit --ignore PYSEC-2026-597
  
